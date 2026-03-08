@@ -1,0 +1,1556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OPTIONS CHAIN VIEWER</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg-dark:      #0d1117;
+    --bg-panel:     #161b22;
+    --bg-header:    #1c2330;
+    --accent-blue:  #58a6ff;
+    --accent-green: #4ac26b;
+    --accent-red:   #ff6b6b;
+    --accent-gold:  #f0b429;
+    --text-primary: #f0f6fc;
+    --text-muted:   #a0aab4;
+    --border:       #3d4551;
+    --call-bg:      #0a2e1a;
+    --put-bg:       #3b1015;
+  }
+
+  body {
+    background: var(--bg-dark);
+    color: var(--text-primary);
+    font-family: "Courier New", monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Top Bar ── */
+  #topbar {
+    background: var(--bg-header);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 18px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  #brand {
+    font-size: 14px;
+    font-weight: bold;
+    color: var(--accent-blue);
+    letter-spacing: 1px;
+    white-space: nowrap;
+  }
+  #ticker-input {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    font-family: "Courier New", monospace;
+    font-size: 15px;
+    font-weight: bold;
+    padding: 6px 10px;
+    width: 100px;
+    text-transform: uppercase;
+    outline: none;
+  }
+  #ticker-input:focus { border-color: var(--accent-blue); }
+
+  .quick-btn {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    font-family: "Courier New", monospace;
+    font-size: 11px;
+    padding: 4px 8px;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .quick-btn:hover { border-color: var(--accent-blue); color: var(--accent-blue); }
+
+  #load-btn {
+    background: var(--accent-blue);
+    border: none;
+    color: #0d1117;
+    font-family: "Courier New", monospace;
+    font-size: 11px;
+    font-weight: bold;
+    padding: 7px 16px;
+    cursor: pointer;
+    letter-spacing: 1px;
+  }
+  #load-btn:hover { background: #1f6feb; }
+  #load-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+  #logout-link {
+    margin-left: auto;
+    color: var(--text-muted);
+    font-size: 11px;
+    text-decoration: none;
+  }
+  #logout-link:hover { color: var(--accent-red); }
+
+  /* ── Spinner ── */
+  .spinner {
+    display: inline-block;
+    color: var(--accent-gold);
+    font-size: 12px;
+  }
+
+  /* ── Tabs ── */
+  #tabbar {
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    gap: 0;
+  }
+  .tab-btn {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-muted);
+    font-family: "Courier New", monospace;
+    font-size: 11px;
+    font-weight: bold;
+    padding: 10px 22px;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: all .15s;
+  }
+  .tab-btn:hover { color: var(--text-primary); }
+  .tab-btn.active {
+    color: var(--accent-blue);
+    border-bottom-color: var(--accent-blue);
+    background: var(--bg-header);
+  }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* ── Stat Cards ── */
+  .stat-row {
+    background: var(--bg-panel);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    padding: 8px 0;
+  }
+  .stat-card {
+    padding: 4px 16px;
+    border-right: 1px solid var(--border);
+    min-width: 90px;
+  }
+  .stat-card:last-child { border-right: none; }
+  .stat-label {
+    font-size: 9px;
+    color: var(--text-muted);
+    letter-spacing: .5px;
+    text-transform: uppercase;
+  }
+  .stat-value {
+    font-size: 13px;
+    font-weight: bold;
+    color: var(--text-primary);
+    margin-top: 2px;
+  }
+
+  /* ── Controls Bar ── */
+  .controls-bar {
+    background: var(--bg-dark);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .controls-bar label {
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+  .ctrl-select, .ctrl-input {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    font-family: "Courier New", monospace;
+    font-size: 11px;
+    padding: 4px 8px;
+    outline: none;
+  }
+  .ctrl-select:focus, .ctrl-input:focus { border-color: var(--accent-blue); }
+  .ctrl-input { width: 70px; }
+
+  .filter-btn {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    font-family: "Courier New", monospace;
+    font-size: 10px;
+    padding: 4px 10px;
+    cursor: pointer;
+  }
+  .filter-btn.active, .filter-btn:hover {
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+  }
+  .apply-btn {
+    background: var(--accent-green);
+    border: none;
+    color: #0d1117;
+    font-family: "Courier New", monospace;
+    font-size: 10px;
+    font-weight: bold;
+    padding: 5px 12px;
+    cursor: pointer;
+  }
+  .apply-btn:hover { background: #3aaa5a; }
+
+  /* ── Chart Container ── */
+  #oi-chart-wrap {
+    background: var(--bg-dark);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 16px;
+    position: relative;
+  }
+  #oi-chart-wrap h4 {
+    font-size: 10px;
+    color: var(--accent-gold);
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+  }
+  #oi-chart { max-height: 320px; }
+
+  /* ── Chain Tables ── */
+  #chain-tables {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+  }
+  .chain-side { overflow: auto; max-height: 480px; }
+  .chain-header {
+    padding: 6px 14px;
+    font-size: 11px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .calls-header { background: var(--call-bg); color: var(--accent-green); }
+  .puts-header  { background: var(--put-bg);  color: var(--accent-red); }
+  .chain-header span { font-size: 9px; color: var(--text-muted); font-weight: normal; }
+
+  table.chain-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+  }
+  table.chain-table thead th {
+    background: var(--bg-header);
+    color: var(--accent-blue);
+    font-size: 9px;
+    letter-spacing: .5px;
+    padding: 5px 6px;
+    text-align: center;
+    position: sticky;
+    top: 37px;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+  }
+  table.chain-table thead th:hover { color: var(--text-primary); }
+  table.chain-table thead th .sort-arrow { opacity: .4; margin-left: 3px; }
+  table.chain-table thead th.sorted-asc  .sort-arrow { opacity: 1; }
+  table.chain-table thead th.sorted-desc .sort-arrow { opacity: 1; }
+
+  table.chain-table tbody tr { border-bottom: 1px solid rgba(61,69,81,.4); }
+  table.chain-table tbody td {
+    padding: 4px 6px;
+    text-align: center;
+    white-space: nowrap;
+  }
+  /* Row tints */
+  tr.itm     td { background: rgba(10,46,26,.7); color: #3fb950; }
+  tr.itm_put td { background: rgba(59,16,21,.7); color: var(--accent-red); }
+  tr.atm     td { background: rgba(28,42,28,.8); color: var(--accent-gold); }
+  tr.high_oi td { color: var(--accent-gold); }
+  tr.unusual_vol td { background: rgba(28,26,13,.8); color: #ffd700; }
+  tr.otm     td { background: var(--bg-panel); color: var(--text-primary); }
+  tr.hidden-row { display: none; }
+
+  .ts-note { font-size: 9px; color: var(--text-muted); padding: 4px 14px; }
+
+  /* ── Market Tab ── */
+  .refresh-bar {
+    background: var(--bg-header);
+    padding: 10px 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .refresh-bar h3 { font-size: 13px; color: var(--accent-blue); letter-spacing: 1px; }
+
+  .refresh-btn {
+    background: var(--accent-green);
+    border: none;
+    color: #0d1117;
+    font-family: "Courier New", monospace;
+    font-size: 10px;
+    font-weight: bold;
+    padding: 6px 14px;
+    cursor: pointer;
+    letter-spacing: 1px;
+  }
+  .refresh-btn:hover { background: #3aaa5a; }
+  .refresh-btn:disabled { opacity: .5; cursor: not-allowed; }
+  .refresh-btn.blue { background: var(--accent-blue); }
+  .refresh-btn.blue:hover { background: #1f6feb; }
+
+  .index-cards {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    padding: 14px 16px;
+  }
+  @media (max-width: 900px) { .index-cards { grid-template-columns: repeat(2, 1fr); } }
+
+  .index-card {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+  }
+  .index-card-header {
+    background: var(--bg-header);
+    padding: 8px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .index-card-ticker { font-size: 16px; font-weight: bold; color: var(--accent-blue); }
+  .index-card-price  { font-size: 12px; color: var(--text-muted); }
+  .index-card-body { padding: 6px 14px 10px; }
+  .index-card-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 3px 0;
+    font-size: 11px;
+  }
+  .index-card-row .lbl { color: var(--text-muted); font-size: 10px; }
+  .oi-bar {
+    height: 8px;
+    border-radius: 0;
+    margin: 6px 0 2px;
+    overflow: hidden;
+    display: flex;
+  }
+  .oi-bar-call { background: var(--accent-green); }
+  .oi-bar-put  { background: var(--accent-red); }
+
+  .badge {
+    display: inline-block;
+    font-size: 9px;
+    font-weight: bold;
+    padding: 2px 7px;
+    letter-spacing: .5px;
+  }
+  .badge-bull  { background: rgba(74,194,107,.18); color: var(--accent-green); border: 1px solid var(--accent-green); }
+  .badge-bear  { background: rgba(255,107,107,.18); color: var(--accent-red);   border: 1px solid var(--accent-red); }
+  .badge-neut  { background: rgba(240,180,41,.18);  color: var(--accent-gold);  border: 1px solid var(--accent-gold); }
+
+  /* Tier table */
+  .tier-section { padding: 0 16px 16px; }
+  .tier-section h4 { font-size: 10px; color: var(--accent-gold); letter-spacing: 1px; padding: 10px 0 6px; }
+  table.tier-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  table.tier-table thead th {
+    background: var(--bg-header);
+    color: var(--accent-blue);
+    font-size: 9px;
+    padding: 5px 8px;
+    text-align: center;
+    letter-spacing: .5px;
+  }
+  table.tier-table tbody tr { border-bottom: 1px solid rgba(61,69,81,.4); }
+  table.tier-table tbody tr:nth-child(even) { background: var(--bg-panel); }
+  table.tier-table tbody td { padding: 4px 8px; text-align: center; }
+
+  /* ── Mega Tab ── */
+  .mega-section { padding: 0 16px 16px; }
+  table.mega-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 10px; }
+  table.mega-table thead th {
+    background: var(--bg-header);
+    color: var(--accent-blue);
+    font-size: 9px;
+    padding: 6px 10px;
+    text-align: center;
+    letter-spacing: .5px;
+    cursor: pointer;
+    user-select: none;
+  }
+  table.mega-table thead th:hover { color: var(--text-primary); }
+  table.mega-table tbody tr { border-bottom: 1px solid rgba(61,69,81,.4); }
+  table.mega-table tbody tr:nth-child(odd)  { background: var(--bg-panel); }
+  table.mega-table tbody tr:nth-child(even) { background: var(--bg-dark); }
+  table.mega-table tbody td { padding: 5px 10px; text-align: center; }
+
+  /* ── Toast ── */
+  #toast-container {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .toast {
+    background: var(--bg-header);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    font-size: 12px;
+    padding: 10px 16px;
+    min-width: 240px;
+    max-width: 360px;
+    animation: slideIn .2s ease;
+  }
+  .toast.error { border-color: var(--accent-red); color: var(--accent-red); }
+  .toast.success { border-color: var(--accent-green); color: var(--accent-green); }
+  @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: none; } }
+
+  /* ── Loading Overlay ── */
+  .loading-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(13,17,23,.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    color: var(--accent-gold);
+    letter-spacing: 2px;
+    z-index: 50;
+  }
+
+  /* Divider */
+  .divider { height: 1px; background: var(--border); }
+
+  /* Color helpers */
+  .bull  { color: var(--accent-green) !important; }
+  .bear  { color: var(--accent-red)   !important; }
+  .neut  { color: var(--accent-gold)  !important; }
+  .blue  { color: var(--accent-blue)  !important; }
+  .muted { color: var(--text-muted)   !important; }
+
+  /* ── Mega Notes ── */
+  .mega-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 8px 18px;
+    border-bottom: 1px solid rgba(61,69,81,.3);
+  }
+  .note-signal {
+    font-size: 10px;
+    font-weight: bold;
+    min-width: 240px;
+    flex-shrink: 0;
+    padding-top: 2px;
+    letter-spacing: .3px;
+  }
+  .note-body {
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.55;
+  }
+</style>
+</head>
+<body>
+
+<!-- Top Bar -->
+<div id="topbar">
+  <div id="brand">OPTIONS CHAIN VIEWER</div>
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+    <input id="ticker-input" type="text" value="SPY" maxlength="8" placeholder="TICKER"
+           onkeydown="if(event.key==='Enter') triggerLoad()">
+    <div style="display:flex;gap:4px;flex-wrap:wrap;">
+      <button class="quick-btn" onclick="setTicker('SPY')">SPY</button>
+      <button class="quick-btn" onclick="setTicker('QQQ')">QQQ</button>
+      <button class="quick-btn" onclick="setTicker('IWM')">IWM</button>
+      <button class="quick-btn" onclick="setTicker('AAPL')">AAPL</button>
+      <button class="quick-btn" onclick="setTicker('NVDA')">NVDA</button>
+      <button class="quick-btn" onclick="setTicker('TSLA')">TSLA</button>
+      <button class="quick-btn" onclick="setTicker('META')">META</button>
+      <button class="quick-btn" onclick="setTicker('MSFT')">MSFT</button>
+      <button class="quick-btn" onclick="setTicker('AMZN')">AMZN</button>
+    </div>
+    <button id="load-btn" onclick="triggerLoad()">LOAD</button>
+    <span class="spinner" id="chain-spinner"></span>
+  </div>
+  <a href="/logout" id="logout-link">LOGOUT</a>
+</div>
+
+<!-- Tab Bar -->
+<div id="tabbar">
+  <button class="tab-btn active" onclick="switchTab('chain')">OPTIONS CHAIN</button>
+  <button class="tab-btn" onclick="switchTab('market')">MARKET OVERVIEW</button>
+  <button class="tab-btn" onclick="switchTab('mega')">MEGA CAPS</button>
+  <button class="tab-btn" onclick="switchTab('vix')">VIX &amp; SENTIMENT</button>
+</div>
+
+<!-- Toast Container -->
+<div id="toast-container"></div>
+
+<!-- ════════════════════════════════════════════════════
+     TAB 1: OPTIONS CHAIN
+     ════════════════════════════════════════════════════ -->
+<div id="tab-chain" class="tab-content active">
+
+  <!-- Summary Stats Row -->
+  <div class="stat-row" id="chain-summary">
+    <div class="stat-card"><div class="stat-label">UNDERLYING</div><div class="stat-value" id="s-ticker">—</div></div>
+    <div class="stat-card"><div class="stat-label">PRICE</div><div class="stat-value" id="s-price">—</div></div>
+    <div class="stat-card"><div class="stat-label">TOTAL CALLS</div><div class="stat-value bull" id="s-call-vol">—</div></div>
+    <div class="stat-card"><div class="stat-label">TOTAL PUTS</div><div class="stat-value bear" id="s-put-vol">—</div></div>
+    <div class="stat-card"><div class="stat-label">VOL P/C</div><div class="stat-value" id="s-vol-pcr">—</div></div>
+    <div class="stat-card"><div class="stat-label">CALL OI</div><div class="stat-value bull" id="s-call-oi">—</div></div>
+    <div class="stat-card"><div class="stat-label">PUT OI</div><div class="stat-value bear" id="s-put-oi">—</div></div>
+    <div class="stat-card"><div class="stat-label">ST SENT</div><div class="stat-value" id="s-st-sent">—</div></div>
+    <div class="stat-card"><div class="stat-label">LT SENT</div><div class="stat-value" id="s-lt-sent">—</div></div>
+    <div class="stat-card"><div class="stat-label">MAX PAIN</div><div class="stat-value blue" id="s-max-pain">—</div></div>
+    <div class="stat-card"><div class="stat-label">IV SKEW</div><div class="stat-value" id="s-iv-skew">—</div></div>
+    <div class="stat-card"><div class="stat-label">EXP MOVE</div><div class="stat-value blue" id="s-exp-move">—</div></div>
+    <div class="stat-card"><div class="stat-label">PUT WALL</div><div class="stat-value bear" id="s-put-wall">—</div></div>
+    <div class="stat-card"><div class="stat-label">CALL WALL</div><div class="stat-value bull" id="s-call-wall">—</div></div>
+    <div class="stat-card"><div class="stat-label">GEX</div><div class="stat-value neut" id="s-gex">—</div></div>
+    <div class="stat-card"><div class="stat-label">IV RANK</div><div class="stat-value blue" id="s-iv-rank">—</div></div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls-bar">
+    <label>EXPIRY:</label>
+    <select id="expiry-select" class="ctrl-select" onchange="onExpiryChange()">
+      <option value="">— load ticker first —</option>
+    </select>
+
+    <div style="width:1px;height:24px;background:var(--border);margin:0 4px;"></div>
+
+    <button class="filter-btn active" id="filter-all" onclick="setItmFilter('all')">ALL</button>
+    <button class="filter-btn" id="filter-itm" onclick="setItmFilter('itm')">ITM</button>
+    <button class="filter-btn" id="filter-otm" onclick="setItmFilter('otm')">OTM</button>
+
+    <label>IV% MIN:</label><input class="ctrl-input" id="f-iv-min" type="number" placeholder="0" min="0">
+    <label>MAX:</label><input class="ctrl-input" id="f-iv-max" type="number" placeholder="999" min="0">
+    <label>STRIKE MIN:</label><input class="ctrl-input" id="f-str-min" type="number" placeholder="0" min="0">
+    <label>MAX:</label><input class="ctrl-input" id="f-str-max" type="number" placeholder="99999" min="0">
+    <label>VOL MIN:</label><input class="ctrl-input" id="f-vol-min" type="number" placeholder="0" min="0">
+    <button class="apply-btn" onclick="applyFilters()">APPLY</button>
+  </div>
+
+  <!-- OI Chart -->
+  <div id="oi-chart-wrap" style="position:relative;">
+    <h4>OPEN INTEREST BY STRIKE &nbsp; <span style="color:var(--accent-green);font-weight:normal;">&#9646; CALLS</span> &nbsp; <span style="color:var(--accent-red);font-weight:normal;">&#9646; PUTS</span></h4>
+    <canvas id="oi-chart"></canvas>
+    <div class="loading-overlay" id="chart-loading" style="display:none;">LOADING...</div>
+  </div>
+
+  <!-- Chain Tables -->
+  <div id="chain-tables">
+    <!-- Calls -->
+    <div class="chain-side" style="border-right:1px solid var(--border);">
+      <div class="chain-header calls-header">
+        CALLS
+        <span id="calls-count"></span>
+      </div>
+      <table class="chain-table" id="calls-table">
+        <thead>
+          <tr>
+            <th onclick="sortTable('calls',0)" data-col="0">STRIKE <span class="sort-arrow">&#9650;</span></th>
+            <th onclick="sortTable('calls',1)" data-col="1">LAST <span class="sort-arrow">&#9650;</span></th>
+            <th onclick="sortTable('calls',2)" data-col="2">BID <span class="sort-arrow">&#9650;</span></th>
+            <th onclick="sortTable('calls',3)" data-col="3">ASK <span class="sort-arrow">&#9650;</span></th>
+            <th onclick="sortTable('calls',4)" data-col="4">VOLUME <span class="sort-arrow">&#9650;</span></th>
+            <th onclick="sortTable('calls',5)" data-col="5">OPEN INT <span class="sort-arrow">&#9650;</span></th>
+            <th onclick="sortTable('calls',6)" data-col="6">IV% <span class="sort-arrow">&#9650;</span></th>
+            <th onclick="sortTable('calls',7)" data-col="7">DELTA <span class="sort-arrow">&#9650;</span></th>
+            <th onclick="sortTable('calls',8)" data-col="8">GAMMA <span class="sort-arrow">&#9650;</span></th>
+            <th onclick="sortTable('calls',9)" data-col="9">THETA <span class="sort-arrow">&#9650;</span></th>
+          </tr>
+        </thead>
+        <tbody id="calls-body"></tbody>
+      </table>
+    </div>
+    <!-- Puts -->
+    <div class="chain-side">
+      <div class="chain-header puts-header">
+        PUTS
+        <span id="puts-count"></span>
+      </div>
+      <table class="chain-table" id="puts-table">
+        <thead>
+          <tr>
+            <th onclick="sortTable('puts',0)" data-col="0">STRIKE <span class="sort-arrow">&#9650;</span></th>
+            <th onclick="sortTable('puts',1)" data-col="1">LAST <span class="sort-arrow">&#9650;</span></th>
+            <th onclick="sortTable('puts',2)" data-col="2">BID <span class="sort-arrow">&#9650;</span></th>
+            <th onclick="sortTable('puts',3)" data-col="3">ASK <span class="sort-arrow">&#9650;</span></th>
+            <th onclick="sortTable('puts',4)" data-col="4">VOLUME <span class="sort-arrow">&#9650;</span></th>
+            <th onclick="sortTable('puts',5)" data-col="5">OPEN INT <span class="sort-arrow">&#9650;</span></th>
+            <th onclick="sortTable('puts',6)" data-col="6">IV% <span class="sort-arrow">&#9650;</span></th>
+            <th onclick="sortTable('puts',7)" data-col="7">DELTA <span class="sort-arrow">&#9650;</span></th>
+            <th onclick="sortTable('puts',8)" data-col="8">GAMMA <span class="sort-arrow">&#9650;</span></th>
+            <th onclick="sortTable('puts',9)" data-col="9">THETA <span class="sort-arrow">&#9650;</span></th>
+          </tr>
+        </thead>
+        <tbody id="puts-body"></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="ts-note" id="chain-ts"></div>
+</div><!-- /tab-chain -->
+
+
+<!-- ════════════════════════════════════════════════════
+     TAB 2: MARKET OVERVIEW
+     ════════════════════════════════════════════════════ -->
+<div id="tab-market" class="tab-content">
+  <div class="refresh-bar">
+    <h3>MARKET-WIDE PUT/CALL DASHBOARD</h3>
+    <button class="refresh-btn" id="market-refresh-btn" onclick="loadMarket()">REFRESH</button>
+    <span class="spinner" id="market-spinner"></span>
+    <span style="margin-left:auto;font-size:10px;color:var(--text-muted);" id="market-ts"></span>
+  </div>
+
+  <!-- Aggregate Row -->
+  <div class="stat-row" id="market-agg-row">
+    <div class="stat-card"><div class="stat-label">TOTAL CALL VOL</div><div class="stat-value bull" id="agg-call-vol">—</div></div>
+    <div class="stat-card"><div class="stat-label">TOTAL PUT VOL</div><div class="stat-value bear" id="agg-put-vol">—</div></div>
+    <div class="stat-card"><div class="stat-label">VOL P/C</div><div class="stat-value" id="agg-vol-pcr">—</div></div>
+    <div class="stat-card"><div class="stat-label">TOTAL CALL OI</div><div class="stat-value bull" id="agg-call-oi">—</div></div>
+    <div class="stat-card"><div class="stat-label">TOTAL PUT OI</div><div class="stat-value bear" id="agg-put-oi">—</div></div>
+    <div class="stat-card"><div class="stat-label">OI P/C</div><div class="stat-value" id="agg-oi-pcr">—</div></div>
+    <div class="stat-card"><div class="stat-label">ST SENTIMENT</div><div class="stat-value" id="agg-st-sent">—</div></div>
+    <div class="stat-card"><div class="stat-label">LT SENTIMENT</div><div class="stat-value" id="agg-lt-sent">—</div></div>
+  </div>
+
+  <!-- Per-Index Cards -->
+  <div class="index-cards" id="market-cards">
+    <!-- filled by JS -->
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- Tier Table -->
+  <div class="tier-section">
+    <h4>CALL & PUT VOLUME BY PRICE TIER (nearest expiry) &nbsp;
+        <span style="color:var(--text-muted);font-weight:normal;">LOTTO &lt;$1 &nbsp; MID $1-$5 &nbsp; PREMIUM $5+</span></h4>
+    <table class="tier-table">
+      <thead>
+        <tr>
+          <th>TICKER</th><th>SIDE</th>
+          <th>LOTTO &lt;$1</th><th>MID $1-$5</th><th>PREMIUM $5+</th>
+          <th>TOTAL VOL</th><th>% LOTTO</th><th>% PREMIUM</th>
+        </tr>
+      </thead>
+      <tbody id="tier-body"></tbody>
+    </table>
+  </div>
+</div><!-- /tab-market -->
+
+
+<!-- ════════════════════════════════════════════════════
+     TAB 3: MEGA CAPS
+     ════════════════════════════════════════════════════ -->
+<div id="tab-mega" class="tab-content">
+  <div class="refresh-bar">
+    <h3>MEGA CAP OPTIONS FLOW</h3>
+    <button class="refresh-btn blue" id="mega-refresh-btn" onclick="loadMega()">REFRESH</button>
+    <span class="spinner" id="mega-spinner"></span>
+    <span style="margin-left:auto;font-size:10px;color:var(--text-muted);" id="mega-ts"></span>
+  </div>
+
+  <!-- Mega vs Market Comparison -->
+  <div class="stat-row" id="mega-comp-row">
+    <div class="stat-card"><div class="stat-label">MEGA P/C VOL</div><div class="stat-value" id="mc-mega-pcr">—</div></div>
+    <div class="stat-card"><div class="stat-label">MARKET P/C VOL</div><div class="stat-value" id="mc-mkt-pcr">—</div></div>
+    <div class="stat-card"><div class="stat-label">DIVERGENCE</div><div class="stat-value" id="mc-diverge">—</div></div>
+    <div class="stat-card"><div class="stat-label">MEGA % PREMIUM</div><div class="stat-value neut" id="mc-mega-prem">—</div></div>
+    <div class="stat-card"><div class="stat-label">MARKET % PREMIUM</div><div class="stat-value neut" id="mc-mkt-prem">—</div></div>
+    <div class="stat-card"><div class="stat-label">MEGA SENTIMENT</div><div class="stat-value" id="mc-mega-sent">—</div></div>
+    <div class="stat-card"><div class="stat-label">MARKET SENTIMENT</div><div class="stat-value" id="mc-mkt-sent">—</div></div>
+  </div>
+
+  <div class="mega-section">
+    <table class="mega-table" id="mega-table">
+      <thead>
+        <tr>
+          <th onclick="sortMegaTable(0)">TICKER</th>
+          <th onclick="sortMegaTable(1)">PRICE</th>
+          <th onclick="sortMegaTable(2)">CALL VOL</th>
+          <th onclick="sortMegaTable(3)">PUT VOL</th>
+          <th onclick="sortMegaTable(4)">P/C</th>
+          <th onclick="sortMegaTable(5)">LOTTO%</th>
+          <th onclick="sortMegaTable(6)">PREMIUM%</th>
+          <th onclick="sortMegaTable(7)">SENTIMENT</th>
+        </tr>
+      </thead>
+      <tbody id="mega-body"></tbody>
+    </table>
+  </div>
+
+  <!-- How to Read Mega Caps -->
+  <div style="border-top:1px solid var(--border);margin-top:4px;">
+    <div style="background:var(--bg-header);padding:8px 18px;">
+      <span style="color:var(--accent-blue);font-size:11px;font-weight:bold;letter-spacing:1px;">HOW TO READ MEGA CAPS vs MARKET</span>
+    </div>
+    <div id="mega-notes">
+      <div class="mega-note" style="background:var(--bg-panel)">
+        <span class="note-signal bear">MEGA P/C &gt;&gt; MARKET P/C</span>
+        <span class="note-body">Mega caps are seeing heavier put buying than the broad index. Institutions hedging concentrated positions in these names specifically — not a general market hedge.</span>
+      </div>
+      <div class="mega-note" style="background:var(--bg-dark)">
+        <span class="note-signal bull">MEGA P/C &lt;&lt; MARKET P/C</span>
+        <span class="note-body">Mega caps seeing more call buying vs the index. Could mean rotation INTO mega caps while the broader market is hedged. Watch for index put buyers vs mega cap call buyers.</span>
+      </div>
+      <div class="mega-note" style="background:var(--bg-panel)">
+        <span class="note-signal neut">HIGH MEGA PREMIUM % vs LOW MARKET PREMIUM %</span>
+        <span class="note-body">Big money paying up for mega cap options while retail dominates broader index flow. Institutional conviction is concentrated in individual names, not the index.</span>
+      </div>
+      <div class="mega-note" style="background:var(--bg-dark)">
+        <span class="note-signal bear">HIGH MEGA PREMIUM PUTS</span>
+        <span class="note-body">Funds buying expensive puts on specific mega caps. Targeted downside protection or directional short bet — not general hedging.</span>
+      </div>
+      <div class="mega-note" style="background:var(--bg-panel)">
+        <span class="note-signal bull">HIGH MEGA PREMIUM CALLS</span>
+        <span class="note-body">Institutional call buying in mega caps. Often signals an anticipated catalyst. These players rarely pay premium without a reason.</span>
+      </div>
+      <div class="mega-note" style="background:var(--bg-dark)">
+        <span class="note-signal muted">MEGA LOTTO &gt;&gt; MARKET LOTTO</span>
+        <span class="note-body">Retail speculating on mega cap names more than the index. Common around earnings. Can cause gamma squeezes if dealers are short those strikes.</span>
+      </div>
+      <div class="mega-note" style="background:var(--bg-panel)">
+        <span class="note-signal neut">MEGA SENTIMENT DIVERGES FROM MARKET SENTIMENT</span>
+        <span class="note-body">Most actionable signal. When mega caps say BEARISH but the market says BULLISH, stocks driving 30%+ of the index are being quietly shorted. The index is likely to follow.</span>
+      </div>
+    </div>
+  </div>
+</div><!-- /tab-mega -->
+
+<!-- ════════════════════════════════════════════════════
+     TAB 4: VIX & SENTIMENT
+     ════════════════════════════════════════════════════ -->
+<div id="tab-vix" class="tab-content">
+  <div class="refresh-bar">
+    <h3>VIX HISTORY &amp; CBOE SENTIMENT</h3>
+    <button class="refresh-btn" id="vix-load-btn" onclick="loadVix()" style="background:var(--accent-red)">LOAD VIX</button>
+    <span class="spinner" id="vix-spinner"></span>
+    <span style="margin-left:auto;font-size:10px;color:var(--text-muted);" id="vix-ts"></span>
+  </div>
+
+  <!-- VIX summary stats -->
+  <div class="stat-row" id="vix-summary-row">
+    <div class="stat-card"><div class="stat-label">LATEST VIX</div><div class="stat-value bear" id="vs-latest">—</div></div>
+    <div class="stat-card"><div class="stat-label">REGIME</div><div class="stat-value" id="vs-regime">—</div></div>
+    <div class="stat-card"><div class="stat-label">30D AVG</div><div class="stat-value neut" id="vs-30d">—</div></div>
+    <div class="stat-card"><div class="stat-label">90D AVG</div><div class="stat-value neut" id="vs-90d">—</div></div>
+    <div class="stat-card"><div class="stat-label">1Y HIGH</div><div class="stat-value bear" id="vs-high">—</div></div>
+    <div class="stat-card"><div class="stat-label">1Y LOW</div><div class="stat-value bull" id="vs-low">—</div></div>
+  </div>
+
+  <!-- VIX Line Chart -->
+  <div style="padding:12px 16px 4px;font-size:10px;font-weight:bold;color:var(--accent-blue);letter-spacing:1px;">
+    CBOE VIX — Last 252 Trading Days (FRED: VIXCLS)
+  </div>
+  <div style="position:relative;height:220px;padding:0 16px 12px;">
+    <canvas id="vix-chart"></canvas>
+  </div>
+
+  <!-- VIX Regime legend -->
+  <div style="background:var(--bg-panel);border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:8px 18px;display:flex;gap:24px;flex-wrap:wrap;">
+    <span style="font-size:10px;font-weight:bold;color:var(--text-muted);">REGIMES:</span>
+    <span style="font-size:10px;font-weight:bold;color:var(--accent-green);">&lt; 15 &nbsp; COMPLACENT</span>
+    <span style="font-size:10px;font-weight:bold;color:var(--accent-gold);">15–25 &nbsp; NORMAL</span>
+    <span style="font-size:10px;font-weight:bold;color:#e08030;">25–35 &nbsp; ELEVATED</span>
+    <span style="font-size:10px;font-weight:bold;color:var(--accent-red);">&gt; 35 &nbsp; FEAR / PANIC</span>
+  </div>
+
+  <!-- CBOE Sentiment Charts -->
+  <div style="padding:12px 16px 4px;">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <span style="font-size:10px;font-weight:bold;color:var(--accent-blue);letter-spacing:1px;">CBOE SENTIMENT INDICES</span>
+      <div style="display:flex;gap:6px;">
+        <button class="filter-btn active" id="cboe-btn-SKEW"  onclick="loadCboe('SKEW')">SKEW</button>
+        <button class="filter-btn"        id="cboe-btn-VIX3M" onclick="loadCboe('VIX3M')">VIX3M</button>
+        <button class="filter-btn"        id="cboe-btn-VIX9D" onclick="loadCboe('VIX9D')">VIX9D</button>
+        <button class="filter-btn"        id="cboe-btn-VIX6M" onclick="loadCboe('VIX6M')">VIX6M</button>
+      </div>
+      <span class="spinner" id="cboe-spinner"></span>
+    </div>
+    <div style="font-size:10px;color:var(--text-muted);margin-top:4px;" id="cboe-desc">Select an indicator above to load 1-year daily history.</div>
+  </div>
+  <div style="position:relative;height:220px;padding:0 16px 16px;">
+    <canvas id="cboe-chart"></canvas>
+  </div>
+
+  <!-- CBOE Indicator descriptions -->
+  <div style="background:var(--bg-panel);border-top:1px solid var(--border);padding:12px 18px;">
+    <div style="font-size:10px;font-weight:bold;color:var(--accent-blue);letter-spacing:1px;margin-bottom:8px;">READING THE INDICATORS</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;">
+      <div style="background:var(--bg-dark);border:1px solid var(--border);padding:10px 14px;">
+        <div style="color:var(--accent-gold);font-weight:bold;font-size:10px;margin-bottom:4px;">^SKEW</div>
+        <div style="color:var(--text-muted);font-size:10px;line-height:1.5;">Measures demand for OTM puts vs ATM options. Values above 130 signal heavy institutional hedging — smart money is buying tail-risk protection. SKEW &gt; 140 = extreme fear of a black swan.</div>
+      </div>
+      <div style="background:var(--bg-dark);border:1px solid var(--border);padding:10px 14px;">
+        <div style="color:var(--accent-gold);font-weight:bold;font-size:10px;margin-bottom:4px;">^VIX9D</div>
+        <div style="color:var(--text-muted);font-size:10px;line-height:1.5;">9-day implied volatility. Spikes sharply around near-term events (FOMC, CPI, earnings). When VIX9D &gt;&gt; VIX, market expects a short-term shock but calm afterwards. Watch for mean reversion.</div>
+      </div>
+      <div style="background:var(--bg-dark);border:1px solid var(--border);padding:10px 14px;">
+        <div style="color:var(--accent-gold);font-weight:bold;font-size:10px;margin-bottom:4px;">^VIX3M</div>
+        <div style="color:var(--text-muted);font-size:10px;line-height:1.5;">3-month implied vol — the institutional planning horizon. When VIX3M &gt; VIX, the term structure is in backwardation — funds expect sustained volatility, not a one-time shock. Historically a bearish signal.</div>
+      </div>
+      <div style="background:var(--bg-dark);border:1px solid var(--border);padding:10px 14px;">
+        <div style="color:var(--accent-gold);font-weight:bold;font-size:10px;margin-bottom:4px;">^VIX6M</div>
+        <div style="color:var(--text-muted);font-size:10px;line-height:1.5;">6-month implied vol. Compare vs VIX3M: if VIX6M &gt; VIX3M, volatility is expected to increase — a longer-term bearish signal. Contango (VIX &lt; VIX3M &lt; VIX6M) = normal, calm market.</div>
+      </div>
+    </div>
+  </div>
+</div><!-- /tab-vix -->
+
+
+<!-- ════════════════════════════════════════════════════
+     JAVASCRIPT
+     ════════════════════════════════════════════════════ -->
+<script>
+// ── State ─────────────────────────────────────────────────
+let _chainData  = null;
+let _itmFilter  = 'all';
+let _sortState  = { calls: { col: 0, asc: true }, puts: { col: 0, asc: true } };
+let _megaSort   = { col: 0, asc: true };
+let _oiChart    = null;
+
+// ── Utilities ─────────────────────────────────────────────
+function fmtNum(n) {
+  if (n == null || isNaN(n)) return '—';
+  n = Number(n);
+  if (n >= 1e6) return (n/1e6).toFixed(1)+'M';
+  if (n >= 10000) return (n/1000).toFixed(0)+'K';
+  if (n >= 1000)  return (n/1000).toFixed(1)+'K';
+  return n.toString();
+}
+function fmtPrice(v) { return v != null ? '$'+Number(v).toFixed(2) : '—'; }
+function fmtPct(v)   { return v != null ? Number(v).toFixed(1)+'%' : '—'; }
+function fmtPcr(v)   { return v != null ? Number(v).toFixed(3) : '—'; }
+
+function sentClass(s) {
+  if (!s) return '';
+  s = s.toUpperCase();
+  if (s === 'BULLISH') return 'bull';
+  if (s === 'BEARISH') return 'bear';
+  return 'neut';
+}
+function sentBadge(s) {
+  if (!s) return '—';
+  s = s.toUpperCase();
+  const cls = s==='BULLISH'?'badge-bull':s==='BEARISH'?'badge-bear':'badge-neut';
+  return `<span class="badge ${cls}">${s}</span>`;
+}
+function pcrClass(v) {
+  if (v == null) return '';
+  v = Number(v);
+  if (v < 0.7)  return 'bull';
+  if (v > 1.0)  return 'bear';
+  return 'neut';
+}
+
+function showToast(msg, type='info') {
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = 'toast' + (type==='error'?' error':type==='success'?' success':'');
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => { t.style.opacity='0'; t.style.transition='opacity .3s'; setTimeout(()=>t.remove(),300); }, 4000);
+}
+
+function setEl(id, html, cls) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.innerHTML = html;
+  if (cls !== undefined) { el.className = el.className.replace(/\b(bull|bear|neut|blue|muted)\b/g,'').trim(); if(cls) el.classList.add(cls); }
+}
+
+// ── Tab Switching ──────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  const btns = document.querySelectorAll('.tab-btn');
+  const map = {chain:0, market:1, mega:2, vix:3};
+  if (map[name] !== undefined) btns[map[name]].classList.add('active');
+}
+
+// ── Ticker / Load ──────────────────────────────────────────
+function setTicker(t) {
+  document.getElementById('ticker-input').value = t;
+}
+function triggerLoad() {
+  const t = document.getElementById('ticker-input').value.trim().toUpperCase();
+  if (!t) { showToast('Enter a ticker symbol', 'error'); return; }
+  loadExpiries(t);
+}
+
+// ── Expiries ───────────────────────────────────────────────
+async function loadExpiries(ticker) {
+  const btn = document.getElementById('load-btn');
+  const sp  = document.getElementById('chain-spinner');
+  btn.disabled = true;
+  sp.textContent = 'Loading expiries...';
+  try {
+    const r = await fetch(`/api/expiries?ticker=${ticker}`);
+    const d = await r.json();
+    if (d.error) { showToast('Error: '+d.error, 'error'); return; }
+    const sel = document.getElementById('expiry-select');
+    sel.innerHTML = d.expiries.map(e => `<option value="${e}">${e}</option>`).join('');
+    if (d.expiries.length) {
+      sel.value = d.expiries[0];
+      loadChain(ticker, d.expiries[0]);
+    }
+  } catch(e) {
+    showToast('Network error fetching expiries', 'error');
+  } finally {
+    btn.disabled = false;
+    sp.textContent = '';
+  }
+}
+
+function onExpiryChange() {
+  const ticker = document.getElementById('ticker-input').value.trim().toUpperCase();
+  const expiry = document.getElementById('expiry-select').value;
+  if (ticker && expiry) loadChain(ticker, expiry);
+}
+
+// ── Chain ──────────────────────────────────────────────────
+async function loadChain(ticker, expiry) {
+  const sp = document.getElementById('chain-spinner');
+  sp.textContent = 'Loading chain...';
+  document.getElementById('chart-loading').style.display = 'flex';
+  try {
+    const r = await fetch(`/api/chain?ticker=${ticker}&expiry=${expiry}`);
+    const d = await r.json();
+    if (d.error) { showToast('Error: '+d.error, 'error'); return; }
+    _chainData = d;
+    renderChainSummary(d);
+    renderChainTables(d);
+    renderOIChart(d);
+    setEl('chain-ts', `Last updated: ${new Date().toLocaleTimeString()}`);
+    showToast(`Loaded ${ticker} ${expiry}`, 'success');
+  } catch(e) {
+    showToast('Network error loading chain', 'error');
+  } finally {
+    sp.textContent = '';
+    document.getElementById('chart-loading').style.display = 'none';
+  }
+}
+
+function renderChainSummary(d) {
+  const s = d.summary;
+  const a = d.analysis;
+  setEl('s-ticker',    d.ticker, 'blue');
+  setEl('s-price',     fmtPrice(d.price));
+  setEl('s-call-vol',  fmtNum(s.call_vol));
+  setEl('s-put-vol',   fmtNum(s.put_vol));
+  setEl('s-vol-pcr',   fmtPcr(s.vol_pcr), pcrClass(s.vol_pcr));
+  setEl('s-call-oi',   fmtNum(s.call_oi));
+  setEl('s-put-oi',    fmtNum(s.put_oi));
+  const stCls = sentClass(s.sentiment_vol);
+  const ltCls = sentClass(s.sentiment_oi);
+  setEl('s-st-sent', s.sentiment_vol || '—', stCls);
+  setEl('s-lt-sent', s.sentiment_oi  || '—', ltCls);
+
+  setEl('s-max-pain',  a.max_pain  != null ? '$'+Number(a.max_pain).toFixed(1) : '—');
+  if (a.iv_skew != null) {
+    const sc = a.iv_skew > 5 ? 'bear' : (a.iv_skew < -5 ? 'bull' : 'neut');
+    setEl('s-iv-skew', (a.iv_skew > 0 ? '+' : '')+a.iv_skew.toFixed(1)+'%', sc);
+  } else { setEl('s-iv-skew', '—'); }
+  if (a.exp_move != null && d.price) {
+    const pct = (100 * a.exp_move / d.price).toFixed(1);
+    setEl('s-exp-move', `\u00b1$${a.exp_move.toFixed(2)} (${pct}%)`);
+  } else { setEl('s-exp-move', '—'); }
+  setEl('s-put-wall',  a.put_wall  != null ? '$'+Number(a.put_wall).toFixed(1) : '—');
+  setEl('s-call-wall', a.call_wall != null ? '$'+Number(a.call_wall).toFixed(1): '—');
+  if (a.gex != null) {
+    const gc = a.gex >= 0 ? 'bull' : 'bear';
+    setEl('s-gex', (a.gex>=0?'+':'')+a.gex.toFixed(1)+'M ('+( a.gex>=0?'PIN':'AMP')+')', gc);
+  } else { setEl('s-gex', '—'); }
+  if (a.iv_rank != null) {
+    const vc = a.iv_rank < 30 ? 'bull' : (a.iv_rank > 70 ? 'bear' : 'neut');
+    setEl('s-iv-rank', a.iv_rank.toFixed(0)+' ('+(a.iv_rank<30?'LOW':a.iv_rank>70?'HIGH':'MID')+')', vc);
+  } else { setEl('s-iv-rank', '—'); }
+}
+
+// ── OI Chart ───────────────────────────────────────────────
+function renderOIChart(d) {
+  const calls = d.calls || [];
+  const puts  = d.puts  || [];
+  if (!calls.length && !puts.length) return;
+
+  // Merge strikes
+  const strikeSet = new Set([...calls.map(r=>r.strike), ...puts.map(r=>r.strike)]);
+  const callMap   = Object.fromEntries(calls.map(r=>[r.strike, r.openInterest]));
+  const putMap    = Object.fromEntries(puts.map(r=>[r.strike, r.openInterest]));
+
+  // Limit to top 20 by combined OI
+  let strikes = [...strikeSet].sort((a,b)=>a-b);
+  if (strikes.length > 20) {
+    strikes = strikes
+      .sort((a,b)=>((callMap[b]||0)+(putMap[b]||0))-((callMap[a]||0)+(putMap[a]||0)))
+      .slice(0,20)
+      .sort((a,b)=>a-b);
+  }
+
+  const labels   = strikes.map(s=>'$'+s.toFixed(0));
+  const callData = strikes.map(s=>callMap[s]||0);
+  const putData  = strikes.map(s=>putMap[s]||0);
+
+  const ctx = document.getElementById('oi-chart').getContext('2d');
+  if (_oiChart) _oiChart.destroy();
+  _oiChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label:'Calls OI', data:callData, backgroundColor:'rgba(74,194,107,0.7)', borderColor:'#4ac26b', borderWidth:1 },
+        { label:'Puts OI',  data:putData,  backgroundColor:'rgba(255,107,107,0.7)',borderColor:'#ff6b6b', borderWidth:1 },
+      ]
+    },
+    options: {
+      responsive: true,
+      interaction: { mode:'index', intersect:false },
+      plugins: {
+        legend: { labels:{ color:'#a0aab4', font:{ family:'Courier New', size:11 } } },
+        tooltip: { backgroundColor:'#1c2330', titleColor:'#f0f6fc', bodyColor:'#a0aab4', borderColor:'#3d4551', borderWidth:1 }
+      },
+      scales: {
+        x: { ticks:{ color:'#a0aab4', font:{family:'Courier New',size:9} }, grid:{ color:'rgba(61,69,81,.4)' } },
+        y: { ticks:{ color:'#a0aab4', font:{family:'Courier New',size:9} }, grid:{ color:'rgba(61,69,81,.4)' } }
+      }
+    }
+  });
+}
+
+// ── Chain Tables ───────────────────────────────────────────
+function renderChainTables(d) {
+  document.getElementById('calls-count').textContent = (d.calls||[]).length + ' contracts';
+  document.getElementById('puts-count').textContent  = (d.puts||[]).length  + ' contracts';
+  _buildTableRows('calls', d.calls||[]);
+  _buildTableRows('puts',  d.puts||[]);
+  applyFilters();
+}
+
+function _buildTableRows(side, rows) {
+  const tbody = document.getElementById(side+'-body');
+  tbody.innerHTML = rows.map(r => {
+    const d = (v, dec=2) => v != null ? Number(v).toFixed(dec) : '—';
+    const cells = [
+      r.strike.toFixed(1),
+      d(r.lastPrice),
+      d(r.bid),
+      d(r.ask),
+      fmtNum(r.volume),
+      fmtNum(r.openInterest),
+      r.iv.toFixed(1)+'%',
+      r.delta  != null ? (r.delta>=0?'+':'')+d(r.delta)  : '—',
+      r.gamma  != null ? d(r.gamma, 4)  : '—',
+      r.theta  != null ? (r.theta>=0?'+':'')+d(r.theta,3) : '—',
+    ];
+    const rowClass = r.rowClass || 'otm';
+    const dataAttrs = `data-strike="${r.strike}" data-iv="${r.iv}" data-volume="${r.volume}" data-itm="${r.inTheMoney?1:0}"`;
+    return `<tr class="${rowClass}" ${dataAttrs}>${cells.map(c=>`<td>${c}</td>`).join('')}</tr>`;
+  }).join('');
+}
+
+// ── Filters ────────────────────────────────────────────────
+function setItmFilter(f) {
+  _itmFilter = f;
+  document.getElementById('filter-all').classList.toggle('active', f==='all');
+  document.getElementById('filter-itm').classList.toggle('active', f==='itm');
+  document.getElementById('filter-otm').classList.toggle('active', f==='otm');
+  applyFilters();
+}
+
+function applyFilters() {
+  const ivMin  = parseFloat(document.getElementById('f-iv-min').value)  || 0;
+  const ivMax  = parseFloat(document.getElementById('f-iv-max').value)  || 9999;
+  const strMin = parseFloat(document.getElementById('f-str-min').value) || 0;
+  const strMax = parseFloat(document.getElementById('f-str-max').value) || 999999;
+  const volMin = parseFloat(document.getElementById('f-vol-min').value) || 0;
+
+  ['calls','puts'].forEach(side => {
+    const rows = document.querySelectorAll(`#${side}-body tr`);
+    rows.forEach(row => {
+      const strike = parseFloat(row.dataset.strike);
+      const iv     = parseFloat(row.dataset.iv);
+      const vol    = parseFloat(row.dataset.volume);
+      const itm    = row.dataset.itm === '1';
+
+      let show = true;
+      if (_itmFilter === 'itm' && !itm)  show = false;
+      if (_itmFilter === 'otm' &&  itm)  show = false;
+      if (iv < ivMin || iv > ivMax)        show = false;
+      if (strike < strMin || strike > strMax) show = false;
+      if (vol < volMin)                    show = false;
+
+      row.classList.toggle('hidden-row', !show);
+    });
+  });
+}
+
+// ── Sort ───────────────────────────────────────────────────
+function sortTable(side, colIdx) {
+  const st   = _sortState[side];
+  const asc  = st.col === colIdx ? !st.asc : true;
+  st.col = colIdx; st.asc = asc;
+
+  // Update header arrows
+  const table = document.getElementById(side+'-table');
+  table.querySelectorAll('thead th').forEach((th, i) => {
+    th.classList.remove('sorted-asc','sorted-desc');
+    const arrow = th.querySelector('.sort-arrow');
+    if (i === colIdx) {
+      th.classList.add(asc ? 'sorted-asc' : 'sorted-desc');
+      if (arrow) arrow.textContent = asc ? '\u25b2' : '\u25bc';
+    } else {
+      if (arrow) arrow.textContent = '\u25b2';
+    }
+  });
+
+  const tbody = document.getElementById(side+'-body');
+  const rows  = [...tbody.querySelectorAll('tr')];
+  rows.sort((a,b) => {
+    const av = a.cells[colIdx].textContent.replace(/[^0-9.\-+]/g,'') || '0';
+    const bv = b.cells[colIdx].textContent.replace(/[^0-9.\-+]/g,'') || '0';
+    const an = parseFloat(av), bn = parseFloat(bv);
+    const cmp = (isNaN(an)||isNaN(bn)) ? av.localeCompare(bv) : an - bn;
+    return asc ? cmp : -cmp;
+  });
+  rows.forEach(r => tbody.appendChild(r));
+}
+
+function sortMegaTable(colIdx) {
+  const asc = _megaSort.col === colIdx ? !_megaSort.asc : true;
+  _megaSort = { col: colIdx, asc };
+  const tbody = document.getElementById('mega-body');
+  const rows  = [...tbody.querySelectorAll('tr')];
+  rows.sort((a,b) => {
+    const av = a.cells[colIdx].textContent.replace(/[^0-9.\-+%]/g,'') || '0';
+    const bv = b.cells[colIdx].textContent.replace(/[^0-9.\-+%]/g,'') || '0';
+    const an = parseFloat(av), bn = parseFloat(bv);
+    const cmp = (isNaN(an)||isNaN(bn)) ? av.localeCompare(bv) : an - bn;
+    return asc ? cmp : -cmp;
+  });
+  rows.forEach(r => tbody.appendChild(r));
+}
+
+// ── Market Overview ────────────────────────────────────────
+async function loadMarket() {
+  const btn = document.getElementById('market-refresh-btn');
+  const sp  = document.getElementById('market-spinner');
+  btn.disabled = true;
+  sp.textContent = 'Loading...';
+  try {
+    const r = await fetch('/api/market');
+    if (r.status === 401) { showToast('Session expired — please refresh the page', 'error'); return; }
+    if (!r.ok) { showToast('Server error: '+r.status, 'error'); return; }
+    const d = await r.json();
+    if (d.error) { showToast('Market error: '+d.error, 'error'); return; }
+    renderMarket(d);
+    document.getElementById('market-ts').textContent = 'Updated: '+new Date().toLocaleTimeString();
+    showToast('Market data refreshed', 'success');
+  } catch(e) {
+    showToast('Error: '+e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    sp.textContent = '';
+  }
+}
+
+function renderMarket(d) {
+  _lastMarketData = d;
+  const agg = d.aggregate;
+  setEl('agg-call-vol', fmtNum(agg.call_vol));
+  setEl('agg-put-vol',  fmtNum(agg.put_vol));
+  setEl('agg-vol-pcr',  fmtPcr(agg.vol_pcr), pcrClass(agg.vol_pcr));
+  setEl('agg-call-oi',  fmtNum(agg.call_oi));
+  setEl('agg-put-oi',   fmtNum(agg.put_oi));
+  setEl('agg-oi-pcr',   fmtPcr(agg.oi_pcr), pcrClass(agg.oi_pcr));
+  setEl('agg-st-sent',  agg.sentiment_vol || '—', sentClass(agg.sentiment_vol));
+  setEl('agg-lt-sent',  agg.sentiment_oi  || '—', sentClass(agg.sentiment_oi));
+
+  // Cards
+  const cardsEl = document.getElementById('market-cards');
+  cardsEl.innerHTML = '';
+  const indices = d.indices || {};
+  Object.entries(indices).forEach(([ticker, idx]) => {
+    const coi = idx.call_oi || 0;
+    const poi = idx.put_oi  || 0;
+    const total = coi + poi || 1;
+    const callPct = (coi/total*100).toFixed(1);
+    const putPct  = (poi/total*100).toFixed(1);
+    const sc = sentClass(idx.sentiment);
+    cardsEl.innerHTML += `
+      <div class="index-card">
+        <div class="index-card-header">
+          <span class="index-card-ticker">${ticker}</span>
+          <span class="index-card-price">${fmtPrice(idx.price)}</span>
+        </div>
+        <div class="index-card-body">
+          <div class="index-card-row"><span class="lbl">CALL VOL</span><span class="bull">${fmtNum(idx.call_vol)}</span></div>
+          <div class="index-card-row"><span class="lbl">PUT VOL</span><span class="bear">${fmtNum(idx.put_vol)}</span></div>
+          <div class="index-card-row"><span class="lbl">VOL P/C</span><span class="${pcrClass(idx.vol_pcr)}">${fmtPcr(idx.vol_pcr)}</span></div>
+          <div class="index-card-row"><span class="lbl">CALL OI</span><span class="bull">${fmtNum(idx.call_oi)}</span></div>
+          <div class="index-card-row"><span class="lbl">PUT OI</span><span class="bear">${fmtNum(idx.put_oi)}</span></div>
+          <div class="index-card-row"><span class="lbl">OI P/C</span><span class="${pcrClass(idx.oi_pcr)}">${fmtPcr(idx.oi_pcr)}</span></div>
+          <div class="index-card-row"><span class="lbl">SENTIMENT</span>${sentBadge(idx.sentiment)}</div>
+          <div class="oi-bar">
+            <div class="oi-bar-call" style="width:${callPct}%"></div>
+            <div class="oi-bar-put"  style="width:${putPct}%"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text-muted);">
+            <span class="bull">CALLS ${callPct}%</span>
+            <span class="bear">PUTS ${putPct}%</span>
+          </div>
+        </div>
+      </div>`;
+  });
+
+  // Tier table
+  const tierBody = document.getElementById('tier-body');
+  tierBody.innerHTML = '';
+  Object.entries(indices).forEach(([ticker, idx], i) => {
+    const tiers = idx.tiers || {};
+    const bg = i%2===0 ? '' : 'background:var(--bg-panel)';
+    ['CALLS','PUTS'].forEach(side => {
+      const t = tiers[side] || {};
+      const color = side==='CALLS' ? 'var(--accent-green)' : 'var(--accent-red)';
+      tierBody.innerHTML += `<tr style="${bg}">
+        <td style="color:var(--text-muted)">${ticker}</td>
+        <td style="color:${color}">${side}</td>
+        <td>${fmtNum(t.lotto||0)}</td>
+        <td>${fmtNum(t.mid||0)}</td>
+        <td style="${(t.pct_prem||0)>40?'color:var(--accent-gold)':''}">${fmtNum(t.premium||0)}</td>
+        <td>${fmtNum(t.total||0)}</td>
+        <td style="${(t.pct_lotto||0)>50?'color:var(--accent-red)':'color:var(--text-muted)'}">${fmtPct(t.pct_lotto)}</td>
+        <td style="${(t.pct_prem||0)>40?'color:var(--accent-gold)':'color:var(--text-muted)'}">${fmtPct(t.pct_prem)}</td>
+      </tr>`;
+    });
+  });
+  renderMegaComp();
+}
+
+// ── Mega Caps ──────────────────────────────────────────────
+async function loadMega() {
+  const btn = document.getElementById('mega-refresh-btn');
+  const sp  = document.getElementById('mega-spinner');
+  btn.disabled = true;
+  sp.textContent = 'Loading...';
+  try {
+    const r = await fetch('/api/mega');
+    const d = await r.json();
+    if (d.error) { showToast('Mega error: '+d.error, 'error'); return; }
+    renderMega(d);
+    document.getElementById('mega-ts').textContent = 'Updated: '+new Date().toLocaleTimeString();
+    showToast('Mega cap data refreshed', 'success');
+  } catch(e) {
+    showToast('Network error loading mega cap data', 'error');
+  } finally {
+    btn.disabled = false;
+    sp.textContent = '';
+  }
+}
+
+let _lastMegaData   = null;
+let _lastMarketData = null;
+
+function renderMega(d) {
+  _lastMegaData = d;
+  const tickers = d.tickers || {};
+  const tbody   = document.getElementById('mega-body');
+  tbody.innerHTML = Object.entries(tickers).map(([ticker, t]) => {
+    const lottoStyle = (t.pct_lotto||0) > 50 ? 'color:var(--accent-red)' : 'color:var(--text-muted)';
+    const premStyle  = (t.pct_prem ||0) > 40 ? 'color:var(--accent-gold)': '';
+    return `<tr>
+      <td style="color:var(--accent-blue);font-weight:bold">${ticker}</td>
+      <td>${fmtPrice(t.price)}</td>
+      <td class="bull">${fmtNum(t.call_vol)}</td>
+      <td class="bear">${fmtNum(t.put_vol)}</td>
+      <td class="${pcrClass(t.pcr)}">${fmtPcr(t.pcr)}</td>
+      <td style="${lottoStyle}">${fmtPct(t.pct_lotto)}</td>
+      <td style="${premStyle}">${fmtPct(t.pct_prem)}</td>
+      <td>${sentBadge(t.sentiment)}</td>
+    </tr>`;
+  }).join('');
+  renderMegaComp();
+}
+
+function renderMegaComp() {
+  if (!_lastMegaData) return;
+  const mt = _lastMegaData.tickers || {};
+  const mVals = Object.values(mt);
+  if (!mVals.length) return;
+
+  const mCV  = mVals.reduce((s,t) => s + (t.call_vol||0), 0);
+  const mPV  = mVals.reduce((s,t) => s + (t.put_vol||0),  0);
+  const mPCR = mCV > 0 ? Math.round(mPV/mCV*1000)/1000 : 0;
+  const mTot = mVals.reduce((s,t) => {
+    const tc = t.tiers?.calls || {}; const tp = t.tiers?.puts || {};
+    return s + (tc.total||0) + (tp.total||0);
+  }, 0) || 1;
+  const mPrem = mVals.reduce((s,t) => {
+    const tc = t.tiers?.calls || {}; const tp = t.tiers?.puts || {};
+    return s + (tc.premium||0) + (tp.premium||0);
+  }, 0);
+  const mPremPct = Math.round(100*mPrem/mTot*10)/10;
+
+  setEl('mc-mega-pcr',  fmtPcr(mPCR), pcrClass(mPCR));
+  setEl('mc-mega-prem', mPremPct.toFixed(1)+'%', mPremPct > 40 ? 'neut' : '');
+  setEl('mc-mega-sent', mPCR < 0.7 ? 'BULLISH' : mPCR > 1.0 ? 'BEARISH' : 'NEUTRAL',
+        sentClass(mPCR < 0.7 ? 'BULLISH' : mPCR > 1.0 ? 'BEARISH' : 'NEUTRAL'));
+
+  if (_lastMarketData) {
+    const idxVals = Object.values(_lastMarketData.indices || {});
+    const iCV  = idxVals.reduce((s,d) => s+(d.call_vol||0), 0);
+    const iPV  = idxVals.reduce((s,d) => s+(d.put_vol||0),  0);
+    const iPCR = iCV > 0 ? Math.round(iPV/iCV*1000)/1000 : 0;
+    const iTot = idxVals.reduce((s,d) => {
+      const tc = d.tiers?.CALLS || {}; const tp = d.tiers?.PUTS || {};
+      return s + (tc.total||0) + (tp.total||0);
+    }, 0) || 1;
+    const iPrem = idxVals.reduce((s,d) => {
+      const tc = d.tiers?.CALLS || {}; const tp = d.tiers?.PUTS || {};
+      return s + (tc.premium||0) + (tp.premium||0);
+    }, 0);
+    const iPremPct = Math.round(100*iPrem/iTot*10)/10;
+
+    const delta = Math.round((mPCR - iPCR)*1000)/1000;
+    const dStr  = (delta>=0?'+':'')+delta.toFixed(3)+' ('+(delta>0.1?'MEGA BEAR':delta<-0.1?'MEGA BULL':'ALIGNED')+')';
+    const dCls  = delta > 0.1 ? 'bear' : delta < -0.1 ? 'bull' : 'neut';
+
+    setEl('mc-mkt-pcr',  fmtPcr(iPCR), pcrClass(iPCR));
+    setEl('mc-mkt-prem', iPremPct.toFixed(1)+'%', iPremPct > 40 ? 'neut' : '');
+    setEl('mc-mkt-sent', iPCR < 0.7 ? 'BULLISH' : iPCR > 1.0 ? 'BEARISH' : 'NEUTRAL',
+          sentClass(iPCR < 0.7 ? 'BULLISH' : iPCR > 1.0 ? 'BEARISH' : 'NEUTRAL'));
+    setEl('mc-diverge', dStr, dCls);
+  }
+}
+
+// ── Line Chart Utility ─────────────────────────────────────
+let _vixChart  = null;
+let _cboeChart = null;
+
+function drawLineChart(canvasId, rows, color, title, chartRef, opts) {
+  const ctx = document.getElementById(canvasId).getContext('2d');
+  if (chartRef) chartRef.destroy();
+  opts = opts || {};
+
+  // Regime band plugin (only applied when regimeBands option is set)
+  const regimeBandPlugin = {
+    id: 'regimeBands',
+    beforeDatasetsDraw(chart) {
+      if (!opts.regimeBands) return;
+      const {ctx: c, scales: {y, x}} = chart;
+      const bands = [
+        { min:0,  max:15, color:'rgba(74,194,107,0.08)'  },
+        { min:15, max:25, color:'rgba(240,180,41,0.08)'  },
+        { min:25, max:35, color:'rgba(224,128,48,0.10)'  },
+        { min:35, max:999,color:'rgba(255,107,107,0.12)' },
+      ];
+      bands.forEach(b => {
+        const yTop = y.getPixelForValue(Math.min(b.max, y.max));
+        const yBot = y.getPixelForValue(Math.max(b.min, y.min));
+        if (yBot <= yTop) return;
+        c.fillStyle = b.color;
+        c.fillRect(x.left, yTop, x.right - x.left, yBot - yTop);
+      });
+      // Regime threshold lines
+      [15, 25, 35].forEach((v, i) => {
+        if (v < y.min || v > y.max) return;
+        const py = y.getPixelForValue(v);
+        c.save();
+        c.strokeStyle = ['rgba(74,194,107,0.5)','rgba(240,180,41,0.5)','rgba(224,128,48,0.5)'][i];
+        c.lineWidth = 1;
+        c.setLineDash([6, 4]);
+        c.beginPath(); c.moveTo(x.left, py); c.lineTo(x.right, py); c.stroke();
+        c.restore();
+      });
+    }
+  };
+
+  // Reference line plugin (for SKEW 130 level etc.)
+  const refLinePlugin = {
+    id: 'refLine',
+    afterDatasetsDraw(chart) {
+      if (!opts.refLine) return;
+      const {ctx: c, scales: {y, x}} = chart;
+      const v = opts.refLine.value;
+      if (v < y.min || v > y.max) return;
+      const py = y.getPixelForValue(v);
+      c.save();
+      c.strokeStyle = opts.refLine.color || '#f0b429';
+      c.lineWidth = 1.5;
+      c.setLineDash([8, 4]);
+      c.beginPath(); c.moveTo(x.left, py); c.lineTo(x.right, py); c.stroke();
+      c.fillStyle = opts.refLine.color || '#f0b429';
+      c.font = 'bold 9px Courier New';
+      c.fillText(opts.refLine.label || v, x.right - 50, py - 4);
+      c.restore();
+    }
+  };
+
+  const chart = new Chart(ctx, {
+    type: 'line',
+    plugins: [regimeBandPlugin, refLinePlugin],
+    data: {
+      labels: rows.map(r => r.date),
+      datasets: [{
+        label: title,
+        data:  rows.map(r => r.value),
+        borderColor:     color,
+        backgroundColor: 'rgba(13,17,23,0)',
+        borderWidth: 2,
+        pointRadius: 0,
+        pointHoverRadius: 5,
+        pointHoverBackgroundColor: color,
+        fill: false,
+        tension: 0.2,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode:'index', intersect:false },
+      plugins: {
+        legend: { display:false },
+        tooltip: {
+          backgroundColor:'#1c2330', titleColor:'#f0f6fc', bodyColor:'#a0aab4',
+          borderColor:'#3d4551', borderWidth:1,
+          callbacks: {
+            title: items => items[0].label,
+            label: items => ` ${title}: ${Number(items.raw).toFixed(2)}`,
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: {
+            color:'#a0aab4', font:{family:'Courier New', size:9},
+            maxTicksLimit: 8,
+            maxRotation: 0,
+            autoSkip: true,
+          },
+          grid: { color:'rgba(61,69,81,.25)' }
+        },
+        y: {
+          ticks: { color:'#f0f6fc', font:{family:'Courier New', size:10, weight:'bold'} },
+          grid:  { color:'rgba(61,69,81,.25)' }
+        }
+      }
+    }
+  });
+  return chart;
+}
+
+// ── VIX ────────────────────────────────────────────────────
+async function loadVix() {
+  const btn = document.getElementById('vix-load-btn');
+  const sp  = document.getElementById('vix-spinner');
+  btn.disabled = true; sp.textContent = 'Loading...';
+  try {
+    const r = await fetch('/api/vix');
+    const d = await r.json();
+    if (d.error) { showToast('VIX error: '+d.error, 'error'); return; }
+
+    const s = d.summary || {};
+    const regimeColor = s.regime === 'COMPLACENT' ? 'var(--accent-green)'
+      : s.regime === 'NORMAL' ? 'var(--accent-gold)'
+      : s.regime === 'ELEVATED' ? '#e08030' : 'var(--accent-red)';
+    setEl('vs-latest', s.latest != null ? s.latest.toFixed(2) : '—', 'bear');
+    setEl('vs-regime', s.regime || '—');
+    document.getElementById('vs-regime').style.color = regimeColor;
+    setEl('vs-30d',  s.avg_30d != null ? s.avg_30d.toFixed(2) : '—');
+    setEl('vs-90d',  s.avg_90d != null ? s.avg_90d.toFixed(2) : '—');
+    setEl('vs-high', s.high_1y != null ? s.high_1y.toFixed(2) : '—');
+    setEl('vs-low',  s.low_1y  != null ? s.low_1y.toFixed(2)  : '—');
+
+    _vixChart = drawLineChart('vix-chart', d.rows || [], '#ff6b6b', 'VIX', _vixChart,
+      { regimeBands: true });
+    document.getElementById('vix-ts').textContent = 'Updated: '+new Date().toLocaleTimeString();
+    showToast('VIX loaded', 'success');
+  } catch(e) {
+    showToast('Network error loading VIX', 'error');
+  } finally {
+    btn.disabled = false; sp.textContent = '';
+  }
+}
+
+// ── CBOE Sentiment ─────────────────────────────────────────
+let _activeCboeSeries = 'SKEW';
+
+async function loadCboe(series) {
+  _activeCboeSeries = series;
+  ['SKEW','VIX3M','VIX9D','VIX6M'].forEach(s => {
+    const b = document.getElementById('cboe-btn-'+s);
+    if (b) b.classList.toggle('active', s === series);
+  });
+  const sp = document.getElementById('cboe-spinner');
+  sp.textContent = 'Loading...';
+  try {
+    const r = await fetch('/api/cboe?series='+series);
+    const d = await r.json();
+    if (d.error) { showToast('CBOE error: '+d.error, 'error'); return; }
+
+    document.getElementById('cboe-desc').textContent = d.desc || '';
+    const color = series === 'SKEW' ? '#f0b429'
+                : series === 'VIX9D' ? '#ff6b6b'
+                : series === 'VIX3M' ? '#58a6ff'
+                : '#4ac26b';
+    const refLine = series === 'SKEW'
+      ? { value:130, label:'130 — HEAVY HEDGE', color:'#ff6b6b' }
+      : series === 'VIX9D'
+      ? { value:20,  label:'20 — ELEVATED',     color:'#f0b429' }
+      : series === 'VIX3M'
+      ? { value:25,  label:'25 — ELEVATED',     color:'#f0b429' }
+      : { value:25,  label:'25 — ELEVATED',     color:'#f0b429' };
+    _cboeChart = drawLineChart('cboe-chart', d.rows || [], color, d.symbol, _cboeChart,
+      { refLine });
+    showToast(series+' loaded', 'success');
+  } catch(e) {
+    showToast('Network error loading '+series, 'error');
+  } finally {
+    sp.textContent = '';
+  }
+}
+
+// ── Init ───────────────────────────────────────────────────
+let _marketLoaded = false;
+let _megaLoaded   = false;
+let _vixLoaded    = false;
+const origSwitch  = window.switchTab;
+window.switchTab  = function(name) {
+  origSwitch(name);
+  if (name==='market' && !_marketLoaded) { _marketLoaded=true; loadMarket(); }
+  if (name==='mega'   && !_megaLoaded)   { _megaLoaded=true;   loadMega();   }
+  if (name==='vix'    && !_vixLoaded)    { _vixLoaded=true;    loadVix(); loadCboe('SKEW'); }
+};
+
+</script>
+</body>
+</html>

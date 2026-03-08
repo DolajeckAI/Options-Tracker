@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OPTIONS CHAIN VIEWER — LOGIN</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg-dark:      #0d1117;
+    --bg-panel:     #161b22;
+    --bg-header:    #1c2330;
+    --accent-blue:  #58a6ff;
+    --accent-green: #4ac26b;
+    --accent-red:   #ff6b6b;
+    --accent-gold:  #f0b429;
+    --text-primary: #f0f6fc;
+    --text-muted:   #a0aab4;
+    --border:       #3d4551;
+  }
+
+  body {
+    background: var(--bg-dark);
+    color: var(--text-primary);
+    font-family: "Courier New", monospace;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  .login-wrap {
+    width: 100%;
+    max-width: 420px;
+  }
+
+  .login-brand {
+    text-align: center;
+    margin-bottom: 32px;
+  }
+  .login-brand h1 {
+    font-size: 18px;
+    color: var(--accent-blue);
+    letter-spacing: 2px;
+    font-weight: bold;
+  }
+  .login-brand p {
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    margin-top: 6px;
+  }
+  .login-brand .dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent-green);
+    margin-right: 6px;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: .3; }
+  }
+
+  .login-card {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    padding: 32px 36px;
+  }
+
+  .login-card h2 {
+    font-size: 12px;
+    color: var(--text-muted);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 24px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .form-group {
+    margin-bottom: 20px;
+  }
+  .form-group label {
+    display: block;
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+  }
+  .form-group input {
+    width: 100%;
+    background: var(--bg-dark);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    font-family: "Courier New", monospace;
+    font-size: 14px;
+    font-weight: bold;
+    padding: 10px 14px;
+    outline: none;
+    letter-spacing: 2px;
+    transition: border-color .15s;
+  }
+  .form-group input:focus {
+    border-color: var(--accent-blue);
+  }
+  .form-group input::placeholder {
+    color: var(--text-muted);
+    font-weight: normal;
+    letter-spacing: 1px;
+  }
+
+  .submit-btn {
+    width: 100%;
+    background: var(--accent-blue);
+    border: none;
+    color: #0d1117;
+    font-family: "Courier New", monospace;
+    font-size: 12px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    padding: 12px;
+    cursor: pointer;
+    transition: background .15s;
+  }
+  .submit-btn:hover { background: #1f6feb; }
+  .submit-btn:active { background: #388bfd; }
+
+  .error-box {
+    background: rgba(255,107,107,.1);
+    border: 1px solid var(--accent-red);
+    color: var(--accent-red);
+    font-size: 11px;
+    padding: 10px 14px;
+    margin-bottom: 18px;
+    letter-spacing: .5px;
+  }
+
+  .login-footer {
+    text-align: center;
+    margin-top: 24px;
+    font-size: 9px;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    line-height: 1.8;
+  }
+  .login-footer span { color: var(--accent-gold); }
+
+  .divider-line {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 20px 0;
+    color: var(--border);
+    font-size: 10px;
+  }
+  .divider-line::before, .divider-line::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* Subtle grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(88,166,255,.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(88,166,255,.02) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .login-wrap { position: relative; z-index: 1; }
+</style>
+</head>
+<body>
+<div class="login-wrap">
+
+  <div class="login-brand">
+    <h1>OPTIONS CHAIN VIEWER</h1>
+    <p><span class="dot"></span>SUBSCRIBER ACCESS</p>
+  </div>
+
+  <div class="login-card">
+    <h2>ENTER INVITE CODE</h2>
+
+    {% if error %}
+    <div class="error-box">&#9888; {{ error }}</div>
+    {% endif %}
+
+    <form method="POST" action="/login" autocomplete="off">
+      <div class="form-group">
+        <label>INVITE CODE</label>
+        <input
+          type="text"
+          name="invite_code"
+          placeholder="XXXX-XXXX-XXXX"
+          autofocus
+          autocomplete="off"
+          spellcheck="false"
+          required>
+      </div>
+      <button type="submit" class="submit-btn">ACCESS DASHBOARD</button>
+    </form>
+
+    <div class="divider-line">CBOE STYLE ANALYSIS</div>
+
+    <div style="font-size:10px;color:var(--text-muted);line-height:2;text-align:center;">
+      <div>Options Chain &middot; Market Overview &middot; Mega Caps</div>
+      <div>Black-Scholes Greeks &middot; IV Rank &middot; GEX &middot; Max Pain</div>
+    </div>
+  </div>
+
+  <div class="login-footer">
+    <div>ACCESS RESTRICTED TO SUBSCRIBERS</div>
+    <div>CONTACT ADMIN FOR AN INVITE CODE</div>
+    <div style="margin-top:8px;">Powered by <span>yfinance</span> &middot; Real-time options data</div>
+  </div>
+
+</div>
+</body>
+</html>
